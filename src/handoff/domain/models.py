@@ -14,6 +14,13 @@ class GestureLabel(StrEnum):
     MIDDLE = "middle"
     RING = "ring"
     PINKY = "pinky"
+    LEFT_CLICK = "left_click"
+    RIGHT_CLICK = "right_click"
+    SCROLL_UP = "scroll_up"
+    SCROLL_DOWN = "scroll_down"
+    NAVIGATE_LEFT = "navigate_left"
+    NAVIGATE_RIGHT = "navigate_right"
+    RESET = "reset"
     # Kept for compatibility with clients that consumed the original label.
     FINGER = "finger"
 
@@ -35,6 +42,10 @@ class HandObservation:
     handedness: str
     confidence: float
     timestamp: float
+    # Original normalized image coordinates retained for motion/cursor tracking.
+    wrist_position: tuple[float, float] | None = None
+    # Original midpoint of the index and middle fingertips for two-finger motion.
+    motion_position: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,8 +71,12 @@ class ActionType(StrEnum):
     """OS-independent actions supported by the dispatcher contract."""
 
     PRESS_KEY = "press_key"
+    KEY_DOWN = "key_down"
+    KEY_UP = "key_up"
+    CLICK = "click"
     MOVE_MOUSE = "move_mouse"
     SCROLL = "scroll"
+    PAUSE_TRACKING = "pause_tracking"
 
 
 @dataclass(frozen=True, slots=True)

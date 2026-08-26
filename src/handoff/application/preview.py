@@ -6,7 +6,12 @@ import sys
 from typing import Protocol, TextIO
 
 from handoff.domain.models import GestureLabel, GesturePrediction
-from handoff.pipeline.interfaces import CameraSource, GestureClassifier, PerceptionBackend
+from handoff.pipeline.interfaces import (
+    CameraSource,
+    GestureClassifier,
+    GestureController,
+    PerceptionBackend,
+)
 
 
 class FrameDisplay(Protocol):
@@ -25,12 +30,20 @@ def run_gesture_preview(
     output: TextIO = sys.stdout,
     max_frames: int | None = None,
     display: FrameDisplay | None = None,
+    controller: GestureController | None = None,
 ) -> None:
-    """Print and optionally display gesture changes without dispatching actions."""
+    """Print and optionally display stable gesture changes without dispatching actions."""
 
     previous: GestureLabel | None = None
+    stable_prediction = GesturePrediction(GestureLabel.UNKNOWN, 0.0)
     for frame_number, frame in enumerate(camera.frames(), start=1):
         prediction = _classify_frame(frame, perception, classifier)
+        if controller is not None:
+            event = controller.update(prediction)
+            if event is not None:
+                stable_prediction = prediction
+            prediction = stable_prediction
+
         overlay = f"Gesture: {prediction.label.value} ({prediction.confidence:.2f})"
         if display is not None and not display.show(frame, overlay):
             break

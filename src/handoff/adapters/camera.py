@@ -23,9 +23,11 @@ class OpenCVCamera:
         width: int | None = 640,
         height: int | None = 480,
         fps: int | None = 30,
+        mirror: bool = True,
         cv2_module: Any | None = None,
     ) -> None:
         self._cv2: Any = cv2_module or self._load_opencv()
+        self._mirror = mirror
         self._capture = self._cv2.VideoCapture(device_index)
         self._closed = False
         self._window_open = False
@@ -62,7 +64,10 @@ class OpenCVCamera:
                 ok, bgr_frame = self._capture.read()
                 if not ok:
                     raise RuntimeError("Could not read a frame from the camera")
-                yield self._cv2.cvtColor(bgr_frame, self._cv2.COLOR_BGR2RGB)
+                rgb_frame = self._cv2.cvtColor(bgr_frame, self._cv2.COLOR_BGR2RGB)
+                if self._mirror:
+                    rgb_frame = self._cv2.flip(rgb_frame, 1)
+                yield rgb_frame
         finally:
             self.close()
 

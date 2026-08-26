@@ -55,6 +55,8 @@ def test_translates_a_hand_to_wrist_relative_normalized_landmarks() -> None:
     assert observation.handedness == "left"
     assert observation.confidence == 0.87
     assert observation.timestamp == 10.0
+    assert observation.wrist_position == (0.5, 0.5)
+    assert observation.motion_position == (0.5, 1.0)
     assert landmarker.calls[0][1] == 10_000
 
 

@@ -40,6 +40,7 @@ class _FakeCV2:
     CAP_PROP_FPS = "fps"
     COLOR_BGR2RGB = "bgr2rgb"
     COLOR_RGB2BGR = "rgb2bgr"
+    FLIP_HORIZONTAL = 1
     FONT_HERSHEY_SIMPLEX = "font"
     LINE_AA = "line"
 
@@ -56,6 +57,10 @@ class _FakeCV2:
     @staticmethod
     def cvtColor(frame: object, conversion: object) -> tuple[str, object, object]:
         return ("rgb", frame, conversion)
+
+    @staticmethod
+    def flip(frame: object, flip_code: int) -> tuple[str, object, int]:
+        return ("flipped", frame, flip_code)
 
     def putText(self, *args: object) -> None:
         self.overlays.append(args)
@@ -83,7 +88,10 @@ def test_yields_rgb_frames_and_releases_capture() -> None:
 
     frames = list(camera.frames())
 
-    assert frames == [("rgb", "frame-1", "bgr2rgb"), ("rgb", "frame-2", "bgr2rgb")]
+    assert frames == [
+        ("flipped", ("rgb", "frame-1", "bgr2rgb"), 1),
+        ("flipped", ("rgb", "frame-2", "bgr2rgb"), 1),
+    ]
     assert capture.settings == [("width", 800), ("height", 600), ("fps", 24)]
     assert capture.released
 

@@ -2,6 +2,7 @@
 
 from io import StringIO
 
+from handoff.application.controller import DebouncedGestureController
 from handoff.application.preview import run_gesture_preview
 from handoff.domain.models import GestureLabel, GesturePrediction
 
@@ -31,6 +32,17 @@ class _Display:
         return frame != "finger"
 
 
+class _RecordingDisplay(_Display):
+    def show(self, frame: object, overlay: str) -> bool:
+        self.overlays.append(overlay)
+        return True
+
+
+class _TransitionCamera:
+    def frames(self):
+        yield from ("finger", "palm", "palm")
+
+
 def test_prints_only_gesture_transitions() -> None:
     output = StringIO()
 
@@ -51,4 +63,22 @@ def test_display_can_stop_the_preview() -> None:
     assert display.overlays == [
         "Gesture: unknown (0.00)",
         "Gesture: finger (0.80)",
+    ]
+
+
+def test_preview_filters_single_frame_transition_labels() -> None:
+    display = _RecordingDisplay()
+
+    run_gesture_preview(
+        _TransitionCamera(),
+        _Perception(),
+        _Classifier(),
+        display=display,
+        controller=DebouncedGestureController(stable_frames=2, clock=lambda: 0.0),
+    )
+
+    assert display.overlays == [
+        "Gesture: unknown (0.00)",
+        "Gesture: unknown (0.00)",
+        "Gesture: palm (0.80)",
     ]

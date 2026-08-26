@@ -1,0 +1,39 @@
+{
+  "thumb": [
+    {"type": "press_key", "value": "space"}
+  ],
+  "index": [
+    {"type": "press_key", "value": "enter"}
+  ],
+  "middle": [
+    {"type": "key_down", "value": "ctrl"}
+  ],
+  "ring": [
+    {"type": "press_key", "value": "media_play_pause"}
+  ],
+  "pinky": [
+    {"type": "press_key", "value": "escape"}
+  ],
+  "left_click": [
+    {"type": "click", "value": "left"}
+  ],
+  "right_click": [
+    {"type": "click", "value": "right"}
+  ],
+  "scroll_up": [
+    {"type": "scroll", "value": 1.0}
+  ],
+  "scroll_down": [
+    {"type": "scroll", "value": -1.0}
+  ],
+  "navigate_left": [
+    {"type": "press_key", "value": "browser_back"}
+  ],
+  "navigate_right": [
+    {"type": "press_key", "value": "browser_forward"}
+  ],
+  "reset": [
+    {"type": "move_mouse", "value": "center"},
+    {"type": "pause_tracking", "value": 1.0}
+  ]
+}

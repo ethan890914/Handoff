@@ -110,6 +110,11 @@ class MediaPipePerception:
             handedness=handedness,
             confidence=confidence,
             timestamp=timestamp_ms / 1000,
+            wrist_position=(float(raw_landmarks[0].x), float(raw_landmarks[0].y)),
+            motion_position=(
+                (float(raw_landmarks[8].x) + float(raw_landmarks[12].x)) / 2,
+                (float(raw_landmarks[8].y) + float(raw_landmarks[12].y)) / 2,
+            ),
         )
 
     @staticmethod

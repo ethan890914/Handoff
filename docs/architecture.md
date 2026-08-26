@@ -27,15 +27,20 @@ action mappings belong in external configuration rather than hard-coded conditio
 `handoff.adapters.perception.MediaPipePerception` is the MediaPipe Tasks adapter.
 It uses `HandLandmarker` in video mode, translates the first detected hand to
 wrist-relative, scale-normalized landmarks, and preserves handedness, confidence,
-and timestamp in the domain contract.
+timestamp, and image-space tracking positions in the domain contract.
 
 `handoff.adapters.classifier.RuleBasedGestureClassifier` currently recognizes:
 
 - `palm` — all five fingers extended;
 - `thumb`, `index`, `middle`, `ring`, or `pinky` — one raised finger;
+- `left_click` / `right_click` — thumb-index or thumb-middle pinch;
+- `scroll_up` / `scroll_down` — two-finger vertical motion;
+- `navigate_left` / `navigate_right` — thumb pointing left or right;
+- `reset` — closed fist;
 - `unknown` — anything else.
 
-These are classifier labels only. No gesture-to-action mappings are included yet.
-The manual preview displays the frame and classification result, then stops before
-action mapping or dispatch; platform permissions, safety behavior, and desktop
-control remain separate future stages.
+These classifier labels are translated into abstract actions by the JSON action
+mapper. No dispatcher implementation is enabled yet.
+The manual preview mirrors the camera frame and displays the debounced
+classification result, then stops before action mapping or dispatch; platform
+permissions, safety behavior, and desktop control remain separate future stages.

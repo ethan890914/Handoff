@@ -45,6 +45,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     from handoff.adapters.camera import OpenCVCamera
     from handoff.adapters.classifier import RuleBasedGestureClassifier
     from handoff.adapters.perception import MediaPipePerception
+    from handoff.application.controller import DebouncedGestureController
     from handoff.application.preview import run_gesture_preview
 
     print("Starting gesture preview. Press Ctrl-C to stop.")
@@ -61,6 +62,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 perception,
                 RuleBasedGestureClassifier(),
                 display=camera,
+                controller=DebouncedGestureController(stable_frames=3),
             )
         except KeyboardInterrupt:
             print("\nGesture preview stopped.")
