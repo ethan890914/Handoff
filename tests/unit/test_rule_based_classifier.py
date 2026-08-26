@@ -11,11 +11,26 @@ def test_open_hand_is_classified_as_palm() -> None:
     assert prediction.confidence > 0.5
 
 
-def test_single_extended_index_is_classified_as_finger() -> None:
+def test_single_extended_index_is_classified_specifically() -> None:
     prediction = RuleBasedGestureClassifier().classify(_observation(extended=(1,)))
 
-    assert prediction.label is GestureLabel.FINGER
-    assert prediction.confidence > 0.0
+    assert prediction.label is GestureLabel.INDEX
+    assert prediction.confidence > 0.75
+
+
+def test_each_single_extended_finger_gets_a_specific_label() -> None:
+    expected = (
+        GestureLabel.THUMB,
+        GestureLabel.INDEX,
+        GestureLabel.MIDDLE,
+        GestureLabel.RING,
+        GestureLabel.PINKY,
+    )
+
+    for finger, label in enumerate(expected):
+        prediction = RuleBasedGestureClassifier().classify(_observation(extended=(finger,)))
+        assert prediction.label is label
+        assert prediction.confidence > 0.75
 
 
 def test_closed_hand_is_unknown() -> None:

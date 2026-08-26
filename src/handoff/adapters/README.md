@@ -6,7 +6,8 @@ Adapter modules:
 - `perception.py` — MediaPipe Tasks hand landmarks translated into the domain
   `HandObservation` contract.
 - `classifier.py` — deterministic rule-based recognition of `palm` and
-  `finger`; a trained classifier can implement the same interface later.
+  individual raised fingers; a trained classifier can implement the same
+  interface later.
 - `dispatcher.py` — keyboard/mouse/accessibility integration.
 
 Adapters translate third-party data and errors into the contracts in

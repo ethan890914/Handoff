@@ -32,6 +32,6 @@ python -m handoff --check-gestures
 ```
 
 The command opens a live window with the current gesture and confidence overlaid,
-prints transitions between `unknown`, `finger`, and `palm`, and does not trigger
-keyboard or mouse actions. Press `q` or `Esc` to stop. Use `--model` to override
-the bundled model path.
+prints transitions between `unknown`, `palm`, and individual finger labels, and
+does not trigger keyboard or mouse actions. Press `q` or `Esc` to stop. Use
+`--model` to override the bundled model path.

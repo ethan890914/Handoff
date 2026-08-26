@@ -9,6 +9,12 @@ class GestureLabel(StrEnum):
 
     UNKNOWN = "unknown"
     PALM = "palm"
+    THUMB = "thumb"
+    INDEX = "index"
+    MIDDLE = "middle"
+    RING = "ring"
+    PINKY = "pinky"
+    # Kept for compatibility with clients that consumed the original label.
     FINGER = "finger"
 
 
@@ -33,7 +39,11 @@ class HandObservation:
 
 @dataclass(frozen=True, slots=True)
 class GesturePrediction:
-    """Classifier output for one frame or short frame window."""
+    """Classifier output for one frame or short frame window.
+
+    Confidence is a calibrated estimate from 0 to 1 for the selected label;
+    it is not a raw MediaPipe gesture probability.
+    """
 
     label: GestureLabel
     confidence: float

@@ -32,7 +32,7 @@ and timestamp in the domain contract.
 `handoff.adapters.classifier.RuleBasedGestureClassifier` currently recognizes:
 
 - `palm` — all five fingers extended;
-- `finger` — the index finger extended while the other non-thumb fingers are curled;
+- `thumb`, `index`, `middle`, `ring`, or `pinky` — one raised finger;
 - `unknown` — anything else.
 
 These are classifier labels only. No gesture-to-action mappings are included yet.
