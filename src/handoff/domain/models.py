@@ -8,6 +8,8 @@ class GestureLabel(StrEnum):
     """Labels emitted by a gesture classifier."""
 
     UNKNOWN = "unknown"
+    PALM = "palm"
+    FINGER = "finger"
 
 
 @dataclass(frozen=True, slots=True)
