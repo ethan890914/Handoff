@@ -14,7 +14,7 @@ python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 ```
 
-Run the scaffold checks with:
+Run the checks with:
 
 ```bash
 pytest
@@ -23,5 +23,15 @@ mypy src
 ```
 
 The project uses a `src/` layout. See [docs/architecture.md](docs/architecture.md) for
-the layer boundaries and planned adapter pipeline. Runtime behavior is not implemented
-yet; `python -m handoff` reports the scaffold status.
+the layer boundaries and adapter pipeline. The project includes a MediaPipe Hand
+Landmarker model under `models/hand_landmarker.task`. To manually check basic gesture
+recognition, run:
+
+```bash
+python -m handoff --check-gestures
+```
+
+The command opens a live window with the current gesture and confidence overlaid,
+prints transitions between `unknown`, `finger`, and `palm`, and does not trigger
+keyboard or mouse actions. Press `q` or `Esc` to stop. Use `--model` to override
+the bundled model path.
