@@ -16,10 +16,41 @@ Camera → Perception → Classifier → Controller → Action mapper → Dispat
 - `handoff.application` owns pipeline orchestration and composition.
 - `handoff.adapters` contains camera, MediaPipe/vision, classifier, and OS input
   integrations. Backend-specific types must stop at this boundary.
-- `handoff.cli` is the future process entry point.
+- `handoff.cli` is the process entry point for the safe manual gesture preview.
 
 The intended flow is raw frames to normalized 21-point landmarks, then predictions,
 debounced gesture events, configured actions, and finally OS-level input. Gesture-to-
 action mappings belong in external configuration rather than hard-coded conditionals.
-The current entry point is deliberately a placeholder; platform permissions, safety
-behavior, and concrete backends must be decided before enabling desktop control.
+
+## Initial gesture recognition
+
+`handoff.adapters.perception.MediaPipePerception` is the MediaPipe Tasks adapter.
+It uses `HandLandmarker` in video mode, translates the first detected hand to
+wrist-relative, scale-normalized landmarks, and preserves handedness, confidence,
+timestamp, and image-space tracking positions in the domain contract.
+
+`handoff.adapters.classifier.RuleBasedGestureClassifier` currently recognizes:
+
+- `palm` — all five fingers extended;
+- `thumb`, `index`, `middle`, `ring`, or `pinky` — one raised finger;
+- `left_click` / `right_click` — thumb-index or thumb-middle pinch;
+- `scroll_up` / `scroll_down` — two straight fingers held pointing up or down;
+- `zoom_in` / `zoom_out` — a thumb–index span change while thumb and index are
+  held extended;
+- `navigate_left` / `navigate_right` — thumb pointing left or right;
+- `reset` — closed fist;
+- `unknown` — anything else.
+
+These classifier labels are translated into abstract actions by the JSON action
+mapper. No dispatcher implementation is enabled yet.
+The manual preview mirrors the camera frame and displays the debounced
+classification result, then stops before action mapping or dispatch; platform
+permissions, safety behavior, and desktop control remain separate future stages.
+
+## Checkpoint one
+
+`config/checkpoint_one_gestures.json` is the active gesture allowlist for the
+preview: `index`, `left_click`, `scroll_up`, and `scroll_down`. Other labels and
+their mappings remain available but are deliberately gated off. Index tracking
+emits backend-neutral relative cursor deltas with a dead zone; leaving the index
+pose resets its origin, providing a clutch for hand repositioning.
