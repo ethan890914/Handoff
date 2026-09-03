@@ -18,8 +18,9 @@ class DebouncedGestureController:
         reset_pause_seconds: float = 1.0,
         repeating_labels: frozenset[GestureLabel] | None = None,
         instant_labels: frozenset[GestureLabel] | None = None,
-        repeat_interval_seconds: float = 0.2,
+        repeat_interval_seconds: float = 0.16,
         zoom_repeat_interval_seconds: float = 0.6,
+        scroll_stable_frames: int = 4,
         right_click_stable_frames: int = 3,
         zoom_stable_frames: int = 5,
         enabled_labels: frozenset[GestureLabel] | None = None,
@@ -35,6 +36,8 @@ class DebouncedGestureController:
             raise ValueError("repeat_interval_seconds must be positive")
         if zoom_repeat_interval_seconds <= 0:
             raise ValueError("zoom_repeat_interval_seconds must be positive")
+        if scroll_stable_frames < 1:
+            raise ValueError("scroll_stable_frames must be at least 1")
         if right_click_stable_frames < 1:
             raise ValueError("right_click_stable_frames must be at least 1")
         if zoom_stable_frames < 1:
@@ -64,6 +67,7 @@ class DebouncedGestureController:
         )
         self._repeat_interval_seconds = repeat_interval_seconds
         self._zoom_repeat_interval_seconds = zoom_repeat_interval_seconds
+        self._scroll_stable_frames = scroll_stable_frames
         self._right_click_stable_frames = right_click_stable_frames
         self._zoom_stable_frames = zoom_stable_frames
         self._enabled_labels = enabled_labels
@@ -122,6 +126,11 @@ class DebouncedGestureController:
         self._last_repeat_at = now if prediction.label in self._repeating_labels else None
         if prediction.label is GestureLabel.INDEX:
             self._last_cursor_position = prediction.cursor_position
+            return GestureEvent(
+                prediction.label,
+                cursor_position=prediction.cursor_position,
+                cursor_tracking_started=True,
+            )
         if prediction.label is GestureLabel.RESET:
             self._paused_until = now + self._reset_pause_seconds
         return GestureEvent(prediction.label)
@@ -139,7 +148,11 @@ class DebouncedGestureController:
         delta_y = (position[1] - previous_y) * self._cursor_gain
         if delta_x * delta_x + delta_y * delta_y <= self._cursor_dead_zone**2:
             return None
-        return GestureEvent(GestureLabel.INDEX, cursor_delta=(delta_x, delta_y))
+        return GestureEvent(
+            GestureLabel.INDEX,
+            cursor_delta=(delta_x, delta_y),
+            cursor_position=position,
+        )
 
     def _clear_active_state(self) -> None:
         self._candidate = None
@@ -149,6 +162,8 @@ class DebouncedGestureController:
         self._last_cursor_position = None
 
     def _required_stable_frames(self, label: GestureLabel) -> int:
+        if label in (GestureLabel.SCROLL_UP, GestureLabel.SCROLL_DOWN):
+            return max(self._stable_frames, self._scroll_stable_frames)
         if label is GestureLabel.RIGHT_CLICK:
             return max(self._stable_frames, self._right_click_stable_frames)
         if label in (GestureLabel.ZOOM_IN, GestureLabel.ZOOM_OUT):

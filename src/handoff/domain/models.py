@@ -48,7 +48,7 @@ class HandObservation:
     wrist_position: tuple[float, float] | None = None
     # Original midpoint of the index and middle fingertips for two-finger motion.
     motion_position: tuple[float, float] | None = None
-    # Original normalized index fingertip position for relative cursor control.
+    # Original normalized index fingertip position for camera-based cursor control.
     cursor_position: tuple[float, float] | None = None
 
 
@@ -71,6 +71,8 @@ class GestureEvent:
 
     label: GestureLabel
     cursor_delta: tuple[float, float] | None = None
+    cursor_position: tuple[float, float] | None = None
+    cursor_tracking_started: bool = False
 
 
 class ActionType(StrEnum):
@@ -82,6 +84,7 @@ class ActionType(StrEnum):
     CLICK = "click"
     MOVE_MOUSE = "move_mouse"
     MOVE_MOUSE_BY = "move_mouse_by"
+    BEGIN_MOUSE_TRACKING = "begin_mouse_tracking"
     SCROLL = "scroll"
     PAUSE_TRACKING = "pause_tracking"
 

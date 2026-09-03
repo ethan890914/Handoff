@@ -8,7 +8,9 @@ Adapter modules:
 - `classifier.py` — deterministic rule-based recognition of `palm` and
   individual raised fingers; a trained classifier can implement the same
   interface later.
-- `dispatcher.py` — keyboard/mouse/accessibility integration.
+- `dispatcher.py` — the checkpoint-one Pynput mouse dispatcher. It supports
+  relative pointer movement, left clicks, and vertical scrolling, and checks
+  macOS Accessibility permission before enabling real control.
 
 Adapters translate third-party data and errors into the contracts in
 `handoff.pipeline.interfaces`. Do not expose backend-specific types upstream.

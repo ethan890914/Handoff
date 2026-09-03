@@ -42,15 +42,20 @@ timestamp, and image-space tracking positions in the domain contract.
 - `unknown` — anything else.
 
 These classifier labels are translated into abstract actions by the JSON action
-mapper. No dispatcher implementation is enabled yet.
+mapper. In checkpoint-one control mode, `PynputInputDispatcher` is the only
+module that imports `pynput`; it translates abstract calibrated mouse movement,
+left clicks, and signed scrolling to macOS input events. Pynput and macOS APIs
+do not appear in the classifier, controller, mapper, or application pipeline.
 The manual preview mirrors the camera frame and displays the debounced
 classification result, then stops before action mapping or dispatch; platform
-permissions, safety behavior, and desktop control remain separate future stages.
+permissions are checked only when the explicit `--control` mode is selected.
 
 ## Checkpoint one
 
 `config/checkpoint_one_gestures.json` is the active gesture allowlist for the
 preview: `index`, `left_click`, `scroll_up`, and `scroll_down`. Other labels and
 their mappings remain available but are deliberately gated off. Index tracking
-emits backend-neutral relative cursor deltas with a dead zone; leaving the index
-pose resets its origin, providing a clutch for hand repositioning.
+emits backend-neutral camera positions alongside cursor deltas; the default
+mapping uses relative tracking, while `--cursor-mode absolute` selects a
+calibrated mapping anchored on index-pose entry. Leaving the index pose resets
+the anchor, providing a clutch for hand repositioning.
