@@ -57,3 +57,11 @@ class InputDispatcher(Protocol):
     def dispatch(self, action: Action) -> None:
         """Perform one action."""
         ...
+
+
+class FrameDisplay(Protocol):
+    """Optionally render a frame without participating in input control."""
+
+    def show(self, frame: object, overlay: str) -> bool:
+        """Render a frame and return ``False`` when the user requests exit."""
+        ...

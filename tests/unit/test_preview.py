@@ -43,6 +43,11 @@ class _TransitionCamera:
         yield from ("finger", "palm", "palm")
 
 
+class _CursorClassifier:
+    def classify(self, observation: object) -> GesturePrediction:
+        return GesturePrediction(GestureLabel.INDEX, 0.8, cursor_position=(0.25, 0.75))
+
+
 def test_prints_only_gesture_transitions() -> None:
     output = StringIO()
 
@@ -82,3 +87,17 @@ def test_preview_filters_single_frame_transition_labels() -> None:
         "Gesture: unknown (0.00)",
         "Gesture: palm (0.80)",
     ]
+
+
+def test_preview_shows_camera_coordinates_for_cursor_calibration() -> None:
+    display = _RecordingDisplay()
+
+    run_gesture_preview(
+        _TransitionCamera(),
+        _Perception(),
+        _CursorClassifier(),
+        display=display,
+        max_frames=1,
+    )
+
+    assert display.overlays == ["Gesture: index (0.80)  Camera: (0.25, 0.75)"]

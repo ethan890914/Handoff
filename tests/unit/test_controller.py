@@ -44,6 +44,7 @@ def test_scroll_pose_repeats_at_a_controlled_rate() -> None:
     now = [0.0]
     controller = DebouncedGestureController(
         stable_frames=2,
+        scroll_stable_frames=2,
         repeat_interval_seconds=0.2,
         clock=lambda: now[0],
     )
@@ -63,6 +64,19 @@ def test_scroll_pose_repeats_at_a_controlled_rate() -> None:
 
     assert repeated_event is not None
     assert repeated_event.label is GestureLabel.SCROLL_UP
+
+
+def test_scroll_requires_a_longer_hold_by_default() -> None:
+    controller = DebouncedGestureController(stable_frames=2, clock=lambda: 0.0)
+    scroll = GesturePrediction(GestureLabel.SCROLL_UP, 0.9)
+
+    assert controller.update(scroll) is None
+    assert controller.update(scroll) is None
+    assert controller.update(scroll) is None
+    event = controller.update(scroll)
+
+    assert event is not None
+    assert event.label is GestureLabel.SCROLL_UP
 
 
 def test_released_click_is_dispatched_without_another_debounce_delay() -> None:
@@ -106,9 +120,14 @@ def test_zoom_requires_a_longer_hold_and_repeats_more_slowly() -> None:
 
 def test_index_tracking_emits_relative_cursor_motion_and_supports_clutching() -> None:
     controller = DebouncedGestureController(stable_frames=1, cursor_dead_zone=0.01)
-    index = lambda position: GesturePrediction(GestureLabel.INDEX, 0.9, position)
 
-    assert controller.update(index((0.5, 0.5))) is not None
+    def index(position: tuple[float, float]) -> GesturePrediction:
+        return GesturePrediction(GestureLabel.INDEX, 0.9, position)
+
+    start_event = controller.update(index((0.5, 0.5)))
+    assert start_event is not None
+    assert start_event.cursor_position == (0.5, 0.5)
+    assert start_event.cursor_tracking_started
     event = controller.update(index((0.54, 0.52)))
 
     assert event is not None

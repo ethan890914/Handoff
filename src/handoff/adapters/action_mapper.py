@@ -42,6 +42,14 @@ class JsonActionMapper:
                 if event.cursor_delta is None:
                     continue
                 actions.append(Action(action_type, event.cursor_delta))
+            elif action_type is ActionType.MOVE_MOUSE and value == "cursor_position":
+                if event.cursor_position is None:
+                    continue
+                actions.append(Action(action_type, event.cursor_position))
+            elif action_type is ActionType.BEGIN_MOUSE_TRACKING and value == "cursor_position":
+                if event.cursor_position is None or not event.cursor_tracking_started:
+                    continue
+                actions.append(Action(action_type, event.cursor_position))
             else:
                 actions.append(Action(action_type, value))
         return tuple(actions)
