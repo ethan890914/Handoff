@@ -19,7 +19,7 @@ _TWO_FINGER_FINGERS = ("index", "middle")
 
 
 class RuleBasedGestureClassifier:
-    """Recognize an open palm, single raised fingers, pinches, and reset.
+    """Recognize static hand poses, including held two-finger scrolling.
 
     Extension is determined from the ratio between a fingertip's distance from
     the wrist and its PIP/IP joint's distance from the wrist.  This works on
@@ -34,39 +34,73 @@ class RuleBasedGestureClassifier:
         *,
         extended_ratio: float = 1.10,
         curled_ratio: float = 0.95,
-        pinch_distance: float = 0.25,
-        movement_threshold: float = 0.06,
+        pinch_distance: float = 0.16,
+        click_hold_frames: int = 3,
+        click_max_motion: float = 0.025,
+        scroll_direction_ratio: float = 1.2,
+        zoom_ready_distance: float = 0.30,
+        zoom_distance_threshold: float = 0.08,
+        zoom_rearm_distance: float | None = None,
+        zoom_smoothing: float = 0.35,
         thumb_extension_distance: float = 0.25,
-        motion_smoothing: float = 0.35,
+        minimum_observation_confidence: float = 0.5,
     ) -> None:
         if curled_ratio >= extended_ratio:
             raise ValueError("curled_ratio must be smaller than extended_ratio")
         if pinch_distance <= 0:
             raise ValueError("pinch_distance must be positive")
-        if movement_threshold <= 0:
-            raise ValueError("movement_threshold must be positive")
+        if click_hold_frames < 1:
+            raise ValueError("click_hold_frames must be at least 1")
+        if click_max_motion < 0:
+            raise ValueError("click_max_motion cannot be negative")
+        if scroll_direction_ratio <= 1:
+            raise ValueError("scroll_direction_ratio must be greater than 1")
+        if zoom_ready_distance <= pinch_distance:
+            raise ValueError("zoom_ready_distance must be larger than pinch_distance")
+        if zoom_distance_threshold <= 0:
+            raise ValueError("zoom_distance_threshold must be positive")
+        if zoom_rearm_distance is not None and zoom_rearm_distance < 0:
+            raise ValueError("zoom_rearm_distance cannot be negative")
+        if not 0 < zoom_smoothing <= 1:
+            raise ValueError("zoom_smoothing must be between 0 and 1")
         if thumb_extension_distance <= 0:
             raise ValueError("thumb_extension_distance must be positive")
-        if not 0 < motion_smoothing <= 1:
-            raise ValueError("motion_smoothing must be between 0 and 1")
+        if not 0 <= minimum_observation_confidence <= 1:
+            raise ValueError("minimum_observation_confidence must be between 0 and 1")
         self._extended_ratio = extended_ratio
         self._curled_ratio = curled_ratio
         self._pinch_distance = pinch_distance
-        self._movement_threshold = movement_threshold
+        self._click_hold_frames = click_hold_frames
+        self._click_max_motion = click_max_motion
+        self._scroll_direction_ratio = scroll_direction_ratio
+        self._zoom_ready_distance = zoom_ready_distance
+        self._zoom_distance_threshold = zoom_distance_threshold
+        self._zoom_rearm_distance = (
+            zoom_distance_threshold * 0.35
+            if zoom_rearm_distance is None
+            else zoom_rearm_distance
+        )
+        self._zoom_smoothing = zoom_smoothing
         self._thumb_extension_distance = thumb_extension_distance
-        self._motion_smoothing = motion_smoothing
-        self._motion_origin: tuple[float, float] | None = None
-        self._motion_position: tuple[float, float] | None = None
-        self._motion_triggered = False
-        self._motion_label: GestureLabel | None = None
-        self._motion_confidence_value = 0.0
-        self._motion_pose_lost = False
+        self._minimum_observation_confidence = minimum_observation_confidence
+        self._zoom_origin_distance: float | None = None
+        self._zoom_distance: float | None = None
+        self._zoom_label: GestureLabel | None = None
+        self._zoom_click_lockout = False
+        self._click_candidate_frames = 0
+        self._click_candidate_position: tuple[float, float] | None = None
+        self._click_candidate_confidence = 0.0
 
     def classify(self, observation: HandObservation) -> GesturePrediction:
         """Return a prediction for one hand observation."""
 
         if len(observation.landmarks) != 21:
             raise ValueError("gesture classification requires exactly 21 hand landmarks")
+        if observation.confidence < self._minimum_observation_confidence:
+            self._clear_zoom_state()
+            self._clear_click_state()
+            self._zoom_click_lockout = False
+            return GesturePrediction(GestureLabel.UNKNOWN, observation.confidence)
 
         states = {
             finger: self._state(observation.landmarks, chain)
@@ -76,13 +110,34 @@ class RuleBasedGestureClassifier:
             observation.landmarks
         ):
             states["thumb"] = ("curled", 0.0)
+
+        pinch_candidates = self._pinch_candidates(observation.landmarks, states)
+        if "middle" in pinch_candidates:
+            self._clear_zoom_state()
+            self._clear_click_state()
+            return GesturePrediction(
+                GestureLabel.RIGHT_CLICK,
+                self._pinch_confidence(observation, "middle"),
+            )
+
+        zoom_prediction = self._classify_zoom(observation, states)
+        if zoom_prediction is not None:
+            return zoom_prediction
+
+        click_prediction = self._classify_left_click(
+            observation,
+            left_pinch="index" in pinch_candidates,
+            other_pinch="middle" in pinch_candidates,
+        )
+        if click_prediction is not None:
+            return click_prediction
+
         if all(states[finger][0] == "extended" for finger in _FINGER_CHAINS):
             return GesturePrediction(
                 GestureLabel.PALM,
                 self._pattern_confidence(observation, states, tuple(_FINGER_CHAINS)),
             )
 
-        pinch_candidates = self._pinch_candidates(observation.landmarks, states)
         if not any(state == "extended" for state, _ in states.values()) and not pinch_candidates:
             return GesturePrediction(
                 GestureLabel.RESET,
@@ -90,22 +145,17 @@ class RuleBasedGestureClassifier:
             )
 
         if pinch_candidates:
-            pinch_finger = min(
-                pinch_candidates,
-                key=lambda candidate: pinch_candidates[candidate],
-            )
-            pinch_label = {
-                "index": GestureLabel.LEFT_CLICK,
-                "middle": GestureLabel.RIGHT_CLICK,
-            }[pinch_finger]
-            return GesturePrediction(
-                pinch_label,
-                self._pinch_confidence(observation, pinch_finger),
-            )
+            # The index pinch is handled above as a release-triggered left
+            # click. A middle pinch has already returned directly.
+            return GesturePrediction(GestureLabel.UNKNOWN, observation.confidence)
 
-        motion_prediction = self._classify_motion(observation, states)
-        if motion_prediction is not None:
-            return motion_prediction
+        zoom_prediction = self._classify_zoom(observation, states)
+        if zoom_prediction is not None:
+            return zoom_prediction
+
+        scroll_prediction = self._classify_static_scroll(observation, states)
+        if scroll_prediction is not None:
+            return scroll_prediction
 
         non_thumb_extended = tuple(
             finger for finger in _NON_THUMB_FINGERS if states[finger][0] == "extended"
@@ -138,15 +188,136 @@ class RuleBasedGestureClassifier:
                     "pinky": GestureLabel.PINKY,
                 }[finger]
                 evidence_fingers = (finger, *required_curled)
-                return GesturePrediction(
-                    label,
-                    self._pattern_confidence(observation, states, evidence_fingers),
-                )
+                confidence = self._pattern_confidence(observation, states, evidence_fingers)
+                if label is GestureLabel.INDEX:
+                    return GesturePrediction(
+                        label,
+                        confidence,
+                        cursor_position=observation.cursor_position,
+                    )
+                return GesturePrediction(label, confidence)
 
         return GesturePrediction(
             GestureLabel.UNKNOWN,
             self._unknown_confidence(observation, states),
         )
+
+    def _classify_zoom(
+        self,
+        observation: HandObservation,
+        states: dict[str, tuple[str, float]],
+    ) -> GesturePrediction | None:
+        zoom_pose = (
+            self._thumb_is_extended(observation.landmarks)
+            and self._finger_is_straight(observation.landmarks, "index")
+            and _distance(observation.landmarks[4], observation.landmarks[8])
+            >= self._zoom_ready_distance
+            and all(
+                states[finger][0] != "extended" for finger in ("middle", "ring", "pinky")
+            )
+        )
+        if not zoom_pose:
+            self._clear_zoom_state()
+            return None
+
+        # A zoom pose is deliberately separate from a touch/click pose.  It
+        # neutralizes any pending click before measuring the zoom span.
+        self._clear_click_state()
+
+        distance = _distance(observation.landmarks[4], observation.landmarks[8])
+        if self._zoom_origin_distance is None:
+            self._zoom_origin_distance = distance
+            self._zoom_distance = distance
+            return None
+
+        previous_distance = self._zoom_distance or self._zoom_origin_distance
+        smoothed_distance = previous_distance + self._zoom_smoothing * (
+            distance - previous_distance
+        )
+        self._zoom_distance = smoothed_distance
+        signed_distance = smoothed_distance - self._zoom_origin_distance
+
+        if self._zoom_label is None:
+            if abs(signed_distance) < self._zoom_distance_threshold:
+                return None
+            self._zoom_label = (
+                GestureLabel.ZOOM_IN if signed_distance > 0 else GestureLabel.ZOOM_OUT
+            )
+            self._zoom_click_lockout = True
+            return GesturePrediction(
+                self._zoom_label,
+                self._zoom_confidence(observation, abs(signed_distance)),
+            )
+
+        direction = 1.0 if self._zoom_label is GestureLabel.ZOOM_IN else -1.0
+        if direction * signed_distance <= self._zoom_rearm_distance:
+            self._zoom_origin_distance = smoothed_distance
+            self._zoom_label = None
+            return None
+
+        return GesturePrediction(
+            self._zoom_label,
+            self._zoom_confidence(observation, abs(signed_distance)),
+        )
+
+    def _classify_left_click(
+        self,
+        observation: HandObservation,
+        *,
+        left_pinch: bool,
+        other_pinch: bool,
+    ) -> GesturePrediction | None:
+        if self._zoom_click_lockout:
+            if not left_pinch and not other_pinch:
+                # One neutral frame releases the lockout; it cannot also start
+                # a new click candidate, preventing a zoom release click.
+                self._zoom_click_lockout = False
+            return None
+
+        if left_pinch:
+            position = observation.wrist_position
+            if self._click_candidate_frames == 0:
+                self._click_candidate_position = position
+                self._click_candidate_confidence = self._pinch_confidence(observation, "index")
+            elif (
+                position is not None
+                and self._click_candidate_position is not None
+                and _position_distance(position, self._click_candidate_position)
+                > self._click_max_motion
+            ):
+                self._clear_click_state()
+                return GesturePrediction(GestureLabel.UNKNOWN, observation.confidence)
+            self._click_candidate_frames += 1
+            return GesturePrediction(GestureLabel.UNKNOWN, observation.confidence)
+
+        if other_pinch:
+            self._clear_click_state()
+            return None
+
+        if self._click_candidate_frames >= self._click_hold_frames:
+            confidence = self._click_candidate_confidence
+            self._clear_click_state()
+            return GesturePrediction(GestureLabel.LEFT_CLICK, confidence)
+
+        self._clear_click_state()
+        return None
+
+    def _clear_zoom_state(self) -> None:
+        self._zoom_origin_distance = None
+        self._zoom_distance = None
+        self._zoom_label = None
+
+    def _clear_click_state(self) -> None:
+        self._click_candidate_frames = 0
+        self._click_candidate_position = None
+        self._click_candidate_confidence = 0.0
+
+    def _zoom_confidence(self, observation: HandObservation, distance: float) -> float:
+        geometry = min(
+            1.0,
+            0.5 + (distance - self._zoom_distance_threshold) / self._zoom_distance_threshold,
+        )
+        return _combined_confidence(geometry, observation.confidence)
 
     def _pinch_candidates(
         self,
@@ -156,8 +327,8 @@ class RuleBasedGestureClassifier:
         candidates = {}
         for finger in _TWO_FINGER_FINGERS:
             if (
-                self._thumb_is_extended(landmarks)
-                and states[finger][0] in ("curled", "unknown")
+                self._thumb_can_pinch(landmarks)
+                and self._finger_can_pinch(states, finger)
                 and all(
                     states[other][0] in ("curled", "extended")
                     for other in self._pinch_allowed_other_fingers(finger)
@@ -172,69 +343,73 @@ class RuleBasedGestureClassifier:
                     candidates[finger] = distance
         return candidates
 
+    @staticmethod
+    def _finger_can_pinch(
+        states: dict[str, tuple[str, float]], finger: str
+    ) -> bool:
+        if finger == "index":
+            return states[finger][0] in ("curled", "unknown", "extended")
+        return states[finger][0] in ("curled", "unknown")
+
     def _pinch_distance_between(self, landmarks: tuple[Landmark, ...], finger: str) -> float:
         tip = 8 if finger == "index" else 12
         return _distance(landmarks[4], landmarks[tip])
+
+    @staticmethod
+    def _thumb_can_pinch(landmarks: tuple[Landmark, ...]) -> bool:
+        """Accept a bent-but-reached thumb while rejecting a thumb folded in a fist."""
+
+        return _distance(landmarks[2], landmarks[4]) >= 0.15
 
     def _pinch_confidence(self, observation: HandObservation, finger: str) -> float:
         distance = self._pinch_distance_between(observation.landmarks, finger)
         geometry = max(0.0, min(1.0, 1.0 - distance / self._pinch_distance))
         return _combined_confidence(geometry, observation.confidence)
 
-    def _classify_motion(
+    def _classify_static_scroll(
         self,
         observation: HandObservation,
         states: dict[str, tuple[str, float]],
     ) -> GesturePrediction | None:
         two_finger_pose = (
             all(
-                self._motion_finger_is_extended(observation.landmarks, finger)
+                self._finger_is_straight(observation.landmarks, finger)
                 for finger in _TWO_FINGER_FINGERS
             )
             and all(states[finger][0] != "extended" for finger in ("ring", "pinky"))
         )
-        position = observation.motion_position or observation.wrist_position
-        if position is None:
-            self._clear_motion_state()
-            return None
-
         if not two_finger_pose:
-            if self._motion_origin is None or self._motion_pose_lost:
-                self._clear_motion_state()
-                return None
-            # Keep one frame of trajectory state when a moving fingertip is
-            # briefly occluded or its extension ratio becomes uncertain.
-            self._motion_pose_lost = True
-        else:
-            self._motion_pose_lost = False
-
-        if self._motion_origin is None:
-            self._motion_origin = position
-            self._motion_position = position
-            self._motion_triggered = False
-            self._motion_label = None
             return None
-        if self._motion_triggered and self._motion_label is not None:
-            return GesturePrediction(self._motion_label, self._motion_confidence_value)
 
-        previous_x, previous_y = self._motion_position or self._motion_origin
-        current_x, current_y = position
-        smoothing = self._motion_smoothing
-        self._motion_position = (
-            previous_x + smoothing * (current_x - previous_x),
-            previous_y + smoothing * (current_y - previous_y),
+        vectors = tuple(
+            self._finger_direction(observation.landmarks, finger)
+            for finger in _TWO_FINGER_FINGERS
         )
-        origin_x, origin_y = self._motion_origin
-        delta_x = self._motion_position[0] - origin_x
-        delta_y = self._motion_position[1] - origin_y
-        if abs(delta_y) >= self._movement_threshold and abs(delta_y) >= abs(delta_x) * 1.5:
-            self._motion_triggered = True
-            label = GestureLabel.SCROLL_DOWN if delta_y > 0 else GestureLabel.SCROLL_UP
-            confidence = self._motion_confidence(observation, abs(delta_y))
-            self._motion_label = label
-            self._motion_confidence_value = confidence
-            return GesturePrediction(label, confidence)
-        return None
+        horizontal = sum(vector[0] for vector in vectors) / len(vectors)
+        vertical = sum(vector[1] for vector in vectors) / len(vectors)
+        if abs(vertical) < abs(horizontal) * self._scroll_direction_ratio:
+            return None
+
+        label = GestureLabel.SCROLL_DOWN if vertical > 0 else GestureLabel.SCROLL_UP
+        verticality = abs(vertical) / math.sqrt(horizontal * horizontal + vertical * vertical)
+        return GesturePrediction(label, _combined_confidence(verticality, observation.confidence))
+
+    @staticmethod
+    def _finger_direction(
+        landmarks: tuple[Landmark, ...], finger: str
+    ) -> tuple[float, float]:
+        mcp, _, tip = _FINGER_CHAINS[finger]
+        return landmarks[tip].x - landmarks[mcp].x, landmarks[tip].y - landmarks[mcp].y
+
+    @staticmethod
+    def _finger_is_straight(landmarks: tuple[Landmark, ...], finger: str) -> bool:
+        mcp, pip_or_ip, tip = _FINGER_CHAINS[finger]
+        first_segment = _distance(landmarks[mcp], landmarks[pip_or_ip])
+        second_segment = _distance(landmarks[pip_or_ip], landmarks[tip])
+        chain_length = first_segment + second_segment
+        if chain_length == 0:
+            return False
+        return _distance(landmarks[mcp], landmarks[tip]) / chain_length >= 0.8
 
     @staticmethod
     def _pinch_allowed_other_fingers(finger: str) -> tuple[str, ...]:
@@ -273,30 +448,6 @@ class RuleBasedGestureClassifier:
         if abs(delta_x) < abs(delta_y) * 1.2:
             return None
         return GestureLabel.NAVIGATE_RIGHT if delta_x > 0 else GestureLabel.NAVIGATE_LEFT
-
-    def _clear_motion_state(self) -> None:
-        self._motion_origin = None
-        self._motion_position = None
-        self._motion_triggered = False
-        self._motion_label = None
-        self._motion_confidence_value = 0.0
-        self._motion_pose_lost = False
-
-    @staticmethod
-    def _motion_finger_is_extended(
-        landmarks: tuple[Landmark, ...], finger: str
-    ) -> bool:
-        _, pip_or_ip, tip = _FINGER_CHAINS[finger]
-        pip_distance = _distance(landmarks[_WRIST], landmarks[pip_or_ip])
-        if pip_distance == 0:
-            return False
-        # Motion gestures use a slightly more permissive gate than static
-        # labels because a moving fingertip is often foreshortened.
-        return _distance(landmarks[_WRIST], landmarks[tip]) / pip_distance >= 0.9
-
-    def _motion_confidence(self, observation: HandObservation, distance: float) -> float:
-        geometry = min(1.0, 0.5 + (distance - self._movement_threshold) / self._movement_threshold)
-        return _combined_confidence(geometry, observation.confidence)
 
     def _state(
         self, landmarks: tuple[Landmark, ...], chain: tuple[int, int, int]
@@ -340,6 +491,10 @@ def _distance(first: Landmark, second: Landmark) -> float:
         + (first.y - second.y) ** 2
         + (first.z - second.z) ** 2
     )
+
+
+def _position_distance(first: tuple[float, float], second: tuple[float, float]) -> float:
+    return math.hypot(first[0] - second[0], first[1] - second[1])
 
 
 def _margin_confidence(margin: float) -> float:

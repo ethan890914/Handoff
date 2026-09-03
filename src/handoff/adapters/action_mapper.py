@@ -38,5 +38,10 @@ class JsonActionMapper:
                 raise ValueError(f"invalid action mapping for {event.label.value!r}") from error
             if isinstance(value, bool) or not isinstance(value, (str, int, float)):
                 raise ValueError("action value must be a string or number")
-            actions.append(Action(action_type, value))
+            if action_type is ActionType.MOVE_MOUSE_BY and value == "cursor_delta":
+                if event.cursor_delta is None:
+                    continue
+                actions.append(Action(action_type, event.cursor_delta))
+            else:
+                actions.append(Action(action_type, value))
         return tuple(actions)

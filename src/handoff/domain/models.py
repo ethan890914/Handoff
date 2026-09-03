@@ -18,6 +18,8 @@ class GestureLabel(StrEnum):
     RIGHT_CLICK = "right_click"
     SCROLL_UP = "scroll_up"
     SCROLL_DOWN = "scroll_down"
+    ZOOM_IN = "zoom_in"
+    ZOOM_OUT = "zoom_out"
     NAVIGATE_LEFT = "navigate_left"
     NAVIGATE_RIGHT = "navigate_right"
     RESET = "reset"
@@ -46,6 +48,8 @@ class HandObservation:
     wrist_position: tuple[float, float] | None = None
     # Original midpoint of the index and middle fingertips for two-finger motion.
     motion_position: tuple[float, float] | None = None
+    # Original normalized index fingertip position for relative cursor control.
+    cursor_position: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +62,7 @@ class GesturePrediction:
 
     label: GestureLabel
     confidence: float
+    cursor_position: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +70,7 @@ class GestureEvent:
     """A debounced gesture transition suitable for action mapping."""
 
     label: GestureLabel
+    cursor_delta: tuple[float, float] | None = None
 
 
 class ActionType(StrEnum):
@@ -75,6 +81,7 @@ class ActionType(StrEnum):
     KEY_UP = "key_up"
     CLICK = "click"
     MOVE_MOUSE = "move_mouse"
+    MOVE_MOUSE_BY = "move_mouse_by"
     SCROLL = "scroll"
     PAUSE_TRACKING = "pause_tracking"
 
@@ -84,4 +91,4 @@ class Action:
     """An abstract action; OS adapters decide how to execute it."""
 
     type: ActionType
-    value: str | float
+    value: str | float | tuple[float, float]

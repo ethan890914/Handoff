@@ -35,10 +35,17 @@ class MediaPipePerception:
         landmarker: Any | None = None,
         mediapipe_module: Any | None = None,
         clock: Callable[[], float] = time.monotonic,
+        landmark_smoothing: float = 0.55,
     ) -> None:
+        if not 0 < landmark_smoothing <= 1:
+            raise ValueError("landmark_smoothing must be between 0 and 1")
         self._mp: Any = mediapipe_module
         self._clock = clock
         self._last_timestamp_ms = -1
+        self._landmark_smoothing = landmark_smoothing
+        self._previous_landmarks: tuple[Landmark, ...] | None = None
+        self._previous_handedness: str | None = None
+        self._previous_cursor_position: tuple[float, float] | None = None
 
         if landmarker is None:
             if model_path is None:
@@ -78,7 +85,13 @@ class MediaPipePerception:
         timestamp = self._next_timestamp()
         image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=frame)
         result = self._landmarker.detect_for_video(image, timestamp_ms=timestamp)
-        return self._to_observation(result, timestamp_ms=timestamp)
+        observation = self._to_observation(result, timestamp_ms=timestamp)
+        if observation is None:
+            self._previous_landmarks = None
+            self._previous_handedness = None
+            self._previous_cursor_position = None
+            return None
+        return self._smooth_observation(observation)
 
     def close(self) -> None:
         """Release MediaPipe resources."""
@@ -115,6 +128,72 @@ class MediaPipePerception:
                 (float(raw_landmarks[8].x) + float(raw_landmarks[12].x)) / 2,
                 (float(raw_landmarks[8].y) + float(raw_landmarks[12].y)) / 2,
             ),
+            cursor_position=(float(raw_landmarks[8].x), float(raw_landmarks[8].y)),
+        )
+
+    def _smooth_observation(self, observation: HandObservation) -> HandObservation:
+        """Apply an EMA to landmark geometry without changing its contract."""
+
+        if (
+            self._previous_landmarks is None
+            or self._previous_handedness != observation.handedness
+        ):
+            self._previous_landmarks = observation.landmarks
+            self._previous_handedness = observation.handedness
+            self._previous_cursor_position = observation.cursor_position
+            return observation
+
+        smoothing = self._landmark_smoothing
+        blended = tuple(
+            Landmark(
+                previous.x + smoothing * (current.x - previous.x),
+                previous.y + smoothing * (current.y - previous.y),
+                previous.z + smoothing * (current.z - previous.z),
+            )
+            for previous, current in zip(
+                self._previous_landmarks, observation.landmarks, strict=True
+            )
+        )
+        landmarks = self._renormalize_landmarks(blended)
+        self._previous_landmarks = landmarks
+        self._previous_handedness = observation.handedness
+        cursor_position = self._smooth_position(observation.cursor_position)
+        return HandObservation(
+            landmarks=landmarks,
+            handedness=observation.handedness,
+            confidence=observation.confidence,
+            timestamp=observation.timestamp,
+            wrist_position=observation.wrist_position,
+            motion_position=observation.motion_position,
+            cursor_position=cursor_position,
+        )
+
+    def _smooth_position(
+        self, position: tuple[float, float] | None
+    ) -> tuple[float, float] | None:
+        if position is None:
+            self._previous_cursor_position = None
+            return None
+        if self._previous_cursor_position is None:
+            self._previous_cursor_position = position
+            return position
+        previous_x, previous_y = self._previous_cursor_position
+        x, y = position
+        smoothed = (
+            previous_x + self._landmark_smoothing * (x - previous_x),
+            previous_y + self._landmark_smoothing * (y - previous_y),
+        )
+        self._previous_cursor_position = smoothed
+        return smoothed
+
+    @staticmethod
+    def _renormalize_landmarks(landmarks: tuple[Landmark, ...]) -> tuple[Landmark, ...]:
+        scale = max(math.sqrt(point.x**2 + point.y**2 + point.z**2) for point in landmarks)
+        if math.isclose(scale, 0.0):
+            raise ValueError("cannot smooth a degenerate hand with no measurable scale")
+        return tuple(
+            Landmark(point.x / scale, point.y / scale, point.z / scale)
+            for point in landmarks
         )
 
     @staticmethod

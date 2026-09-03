@@ -3,7 +3,7 @@
     {"type": "press_key", "value": "space"}
   ],
   "index": [
-    {"type": "press_key", "value": "enter"}
+    {"type": "move_mouse_by", "value": "cursor_delta"}
   ],
   "middle": [
     {"type": "key_down", "value": "ctrl"}
@@ -25,6 +25,12 @@
   ],
   "scroll_down": [
     {"type": "scroll", "value": -1.0}
+  ],
+  "zoom_in": [
+    {"type": "press_key", "value": "ctrl+plus"}
+  ],
+  "zoom_out": [
+    {"type": "press_key", "value": "ctrl+minus"}
   ],
   "navigate_left": [
     {"type": "press_key", "value": "browser_back"}

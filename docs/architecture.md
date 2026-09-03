@@ -34,7 +34,9 @@ timestamp, and image-space tracking positions in the domain contract.
 - `palm` — all five fingers extended;
 - `thumb`, `index`, `middle`, `ring`, or `pinky` — one raised finger;
 - `left_click` / `right_click` — thumb-index or thumb-middle pinch;
-- `scroll_up` / `scroll_down` — two-finger vertical motion;
+- `scroll_up` / `scroll_down` — two straight fingers held pointing up or down;
+- `zoom_in` / `zoom_out` — a thumb–index span change while thumb and index are
+  held extended;
 - `navigate_left` / `navigate_right` — thumb pointing left or right;
 - `reset` — closed fist;
 - `unknown` — anything else.
@@ -44,3 +46,11 @@ mapper. No dispatcher implementation is enabled yet.
 The manual preview mirrors the camera frame and displays the debounced
 classification result, then stops before action mapping or dispatch; platform
 permissions, safety behavior, and desktop control remain separate future stages.
+
+## Checkpoint one
+
+`config/checkpoint_one_gestures.json` is the active gesture allowlist for the
+preview: `index`, `left_click`, `scroll_up`, and `scroll_down`. Other labels and
+their mappings remain available but are deliberately gated off. Index tracking
+emits backend-neutral relative cursor deltas with a dead zone; leaving the index
+pose resets its origin, providing a clutch for hand repositioning.

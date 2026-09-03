@@ -33,10 +33,23 @@ python -m handoff --check-gestures
 ```
 
 The command opens a mirrored live window with the stable gesture and confidence overlaid,
-prints gesture transitions, and does not trigger keyboard or mouse actions. It
-recognizes palms, individual fingers, thumb pinches for left/right click, a
-closed-fist reset, two-finger vertical scrolling, and thumb-pointing navigation.
+prints gesture transitions, and does not trigger keyboard or mouse actions. Its
+default checkpoint profile activates only index-finger cursor tracking,
+release-based left click, and two-finger vertical scrolling. The other
+recognizers remain implemented but are inactive until selected through a
+different `--gesture-profile` JSON file.
 Transient one-frame labels during gesture changes are filtered by the preview
 controller.
 Press `q` or `Esc` to stop. Use `--model` to override the bundled model path.
+Hold two fingers pointed up or down to scroll; releasing or changing the pose
+stops it. `--scroll-repeat-interval` controls the scrolling rate. A click is a
+tight, still thumb–index pinch released after a short hold; tune it with
+`--pinch-distance`, `--click-hold-frames`, and `--click-max-motion`. In a
+profile that enables zoom, hold thumb and index extended with the other fingers
+curled and a clearly separated gap. Spread the thumb and index apart to zoom in
+or bring them together
+to zoom out. Zoom waits for five stable frames and repeats
+every 0.6 seconds by default; `--zoom-stable-frames`,
+`--zoom-repeat-interval`, and `--zoom-distance-threshold` tune that behavior.
+`--landmark-smoothing` filters hand-landmark jitter before gesture recognition.
 The default mappings are in `config/gesture_mappings.json`.
