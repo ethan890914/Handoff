@@ -15,6 +15,9 @@ _DEFAULT_GESTURE_PROFILE = (
 _DEFAULT_GESTURE_MAPPINGS = (
     Path(__file__).resolve().parents[2] / "config" / "gesture_mappings.json"
 )
+_ABSOLUTE_GESTURE_MAPPINGS = (
+    Path(__file__).resolve().parents[2] / "config" / "gesture_mappings_absolute.json"
+)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -52,8 +55,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument(
         "--gesture-mappings",
         type=Path,
-        default=_DEFAULT_GESTURE_MAPPINGS,
-        help="JSON gesture-to-action mapping used by --control",
+        help="JSON gesture-to-action mapping used by --control; overrides --cursor-mode",
+    )
+    parser.add_argument(
+        "--cursor-mode",
+        choices=("relative", "absolute"),
+        default="relative",
+        help="cursor tracking mode used by --control (default: relative)",
     )
     parser.add_argument("--camera-index", type=int, default=0)
     parser.add_argument("--width", type=int, default=640)
@@ -161,13 +169,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         return
     if args.preview and not args.control:
         parser.error("--preview can only be used with --control")
+    gesture_mappings = args.gesture_mappings or _default_gesture_mappings(args.cursor_mode)
 
     if not args.model.is_file():
         parser.error(f"MediaPipe model not found: {args.model}")
     if not args.gesture_profile.is_file():
         parser.error(f"gesture profile not found: {args.gesture_profile}")
-    if args.control and not args.gesture_mappings.is_file():
-        parser.error(f"gesture mappings not found: {args.gesture_mappings}")
+    if args.control and not gesture_mappings.is_file():
+        parser.error(f"gesture mappings not found: {gesture_mappings}")
     if not 0 < args.landmark_smoothing <= 1:
         parser.error("landmark_smoothing must be between 0 and 1")
     if args.cursor_pixels_per_unit <= 0:
@@ -223,7 +232,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         from handoff.application.service import HandoffApplication
 
         try:
-            action_mapper = JsonActionMapper(args.gesture_mappings)
+            action_mapper = JsonActionMapper(gesture_mappings)
             dispatcher = PynputInputDispatcher(
                 cursor_pixels_per_unit=args.cursor_pixels_per_unit,
                 scroll_steps_per_unit=args.scroll_steps_per_unit,
@@ -271,3 +280,11 @@ def main(argv: Sequence[str] | None = None) -> None:
             print("\nHandoff stopped.")
         finally:
             perception.close()
+
+
+def _default_gesture_mappings(cursor_mode: str) -> Path:
+    """Select a config-backed cursor mapping without embedding mappings in code."""
+
+    if cursor_mode == "absolute":
+        return _ABSOLUTE_GESTURE_MAPPINGS
+    return _DEFAULT_GESTURE_MAPPINGS

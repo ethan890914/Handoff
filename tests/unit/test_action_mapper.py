@@ -34,8 +34,18 @@ def test_zoom_mapping_is_loaded_from_external_configuration() -> None:
     ]
 
 
-def test_absolute_cursor_mapping_anchors_then_uses_camera_position() -> None:
+def test_default_cursor_mapping_uses_relative_delta() -> None:
     mapper = JsonActionMapper("config/gesture_mappings.json")
+
+    actions = mapper.map(GestureEvent(GestureLabel.INDEX, cursor_delta=(0.1, -0.2)))
+
+    assert [(action.type, action.value) for action in actions] == [
+        (ActionType.MOVE_MOUSE_BY, (0.1, -0.2)),
+    ]
+
+
+def test_absolute_cursor_mapping_anchors_then_uses_camera_position() -> None:
+    mapper = JsonActionMapper("config/gesture_mappings_absolute.json")
 
     start_actions = mapper.map(
         GestureEvent(
@@ -61,7 +71,7 @@ def test_absolute_cursor_mapping_anchors_then_uses_camera_position() -> None:
     ]
 
 
-def test_relative_cursor_mapping_remains_selectable() -> None:
+def test_legacy_relative_cursor_mapping_remains_selectable() -> None:
     mapper = JsonActionMapper("config/gesture_mappings_relative.json")
 
     actions = mapper.map(GestureEvent(GestureLabel.INDEX, cursor_delta=(0.1, -0.2)))

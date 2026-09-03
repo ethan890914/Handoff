@@ -81,26 +81,23 @@ action mappings remain editable in `config/gesture_mappings.json`.
 
 ## Cursor tracking calibration
 
-The default mapping is clutch-safe absolute tracking: the comfortable central
-camera region maps across the display, while starting an index-pointing pose
-anchors your current pointer position so it does not jump. To calibrate it,
-run the safe preview and note the `Camera: (x, y)` values while holding your
-pointing hand at its comfortable left, top, right, and bottom limits. Provide
-those normalized camera bounds as follows:
+Relative cursor tracking is the default. To use clutch-safe absolute tracking,
+select it explicitly; the comfortable central camera region then maps across
+the display, while starting an index-pointing pose anchors your current pointer
+position so it does not jump. First run the safe preview and note the
+`Camera: (x, y)` values while holding your pointing hand at its comfortable
+left, top, right, and bottom limits. Provide those normalized camera bounds as
+follows:
 
 ```bash
 python -m handoff --check-gestures
 ```
 
 ```bash
-python -m handoff --control --preview \
+python -m handoff --control --preview --cursor-mode absolute \
   --cursor-active-region 0.15 0.15 0.85 0.85
 ```
 
 The values are `LEFT TOP RIGHT BOTTOM`, each between `0` and `1`; the default
-central region above is a starting point. To return to the previous relative
-cursor behavior, select the external relative mapping:
-
-```bash
-python -m handoff --control --gesture-mappings config/gesture_mappings_relative.json
-```
+central region above is a starting point. `--gesture-mappings` can still select
+a custom external mapping and overrides `--cursor-mode`.

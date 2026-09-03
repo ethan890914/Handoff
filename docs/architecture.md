@@ -56,6 +56,6 @@ permissions are checked only when the explicit `--control` mode is selected.
 preview: `index`, `left_click`, `scroll_up`, and `scroll_down`. Other labels and
 their mappings remain available but are deliberately gated off. Index tracking
 emits backend-neutral camera positions alongside cursor deltas; the default
-mapping uses calibrated absolute tracking anchored on index-pose entry, while a
-relative mapping remains selectable as a fallback. Leaving the index pose
-resets the anchor, providing a clutch for hand repositioning.
+mapping uses relative tracking, while `--cursor-mode absolute` selects a
+calibrated mapping anchored on index-pose entry. Leaving the index pose resets
+the anchor, providing a clutch for hand repositioning.

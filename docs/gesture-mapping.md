@@ -38,14 +38,14 @@ movement being mistaken for navigation.
 
 ## Cursor tracking
 
-The default `index` mapping uses `begin_mouse_tracking` followed by
-`move_mouse` with the backend-neutral `cursor_position` supplied by an index
-event. The dispatcher anchors the camera-to-screen mapping to the current
-cursor when tracking begins, so releasing the index pose provides a clutch for
-hand repositioning without a pointer jump. The default active camera region is
-the central `0.15, 0.15` through `0.85, 0.85` rectangle and is configurable at
-the CLI. `config/gesture_mappings_relative.json` retains the earlier relative
-`move_mouse_by` behavior as a config-selectable fallback.
+The default `index` mapping uses relative `move_mouse_by` cursor deltas.
+Selecting `--cursor-mode absolute` loads the external absolute mapping, which
+uses `begin_mouse_tracking` followed by `move_mouse` with the backend-neutral
+`cursor_position` supplied by an index event. The dispatcher anchors the
+camera-to-screen mapping to the current cursor when tracking begins, so
+releasing the index pose provides a clutch for hand repositioning without a
+pointer jump. The default active camera region is the central `0.15, 0.15`
+through `0.85, 0.85` rectangle and is configurable at the CLI.
 
 ## Zoom gesture
 

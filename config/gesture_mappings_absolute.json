@@ -3,7 +3,8 @@
     {"type": "press_key", "value": "space"}
   ],
   "index": [
-    {"type": "move_mouse_by", "value": "cursor_delta"}
+    {"type": "begin_mouse_tracking", "value": "cursor_position"},
+    {"type": "move_mouse", "value": "cursor_position"}
   ],
   "middle": [
     {"type": "key_down", "value": "ctrl"}
